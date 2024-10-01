@@ -7,7 +7,7 @@ class AllGoblinsHaveNames {
      */
     async rerollSelectedTokens() {
         for (let token of canvas.tokens.controlled) {
-            const result = await getNewRolledValues(token.actor.data.token);
+            const result = await getNewRolledValues(token.actor.token);
             saveRolledValues(token.document, result);
         }
     }
@@ -37,7 +37,7 @@ async function getRollTableResult(displayName) {
     // get the table by its ID
     const endIndex = displayName.indexOf("]");
     const table_id = displayName.substring(16, endIndex);
-    const table = game.tables.contents.find((t) => t.data._id == table_id);
+    const table = game.tables.contents.find((t) => t._id == table_id);
 
     if (table) {
         return await rollTable(table);
@@ -91,35 +91,35 @@ async function getCompendiumTableResult(displayName) {
 
 /**
  * Searches for tables in the name field and biogrpahy
- * @param {TokenData} tokenData
+ * @param {TokenData} token
  */
-function mineForTableStrings(tokenData) {
-    const displayName = tokenData.name.trim();
+function mineForTableStrings(token) {
+    const displayName = token.name.trim();
     let nameTableStr, bioDataPath, bioTableStr;
     if (isWorldTable(displayName) || isCompendiumTable(displayName)) {
         nameTableStr = displayName;
     }
 
     // Mine biography for tables
-    const actorId = tokenData.actorId || tokenData.document.id;
-    if (!tokenData.actorLink && actorId) {
+    const actorId = token.actorId || token.id;
+    if (!token.actorLink && actorId) {
         let actor = game.actors.get(actorId);
-        let actorData = actor.data.data;
+        let systemData = actor.system;
 
         let bio;
         // structure of simple worldbuilding system
-        if (actorData.biography) {
-            bio = actorData.biography;
-            bioDataPath = "data.biography";
+        if (systemData.biography) {
+            bio = systemData.biography;
+            bioDataPath = "system.biography";
         }
         // structure of D&D 5e NPCs and PCs
         else if (
-            actorData.details &&
-            actorData.details.biography &&
-            actorData.details.biography.value
+            systemData.details &&
+            systemData.details.biography &&
+            systemData.details.biography.value
         ) {
-            bio = actorData.details.biography.value;
-            bioDataPath = "data.details.biography.value";
+            bio = systemData.details.biography.value;
+            bioDataPath = "system.details.biography.value";
         }
 
         // get text out of bio
@@ -189,7 +189,12 @@ Hooks.on("ready", () => {
      * @param {TokenDocument} tokenDocument
      */
     Hooks.on("createToken", async (tokenDocument) => {
-        const toRoll = mineForTableStrings(tokenDocument.data);
+        if (!tokenDocument || !tokenDocument.name) {
+            // Not a token, bail
+            return;
+        }
+
+        const toRoll = mineForTableStrings(tokenDocument);
 
         // bail if there is no table strings to roll on
         if (!toRoll.nameTableStr && !toRoll.bioTableStr) {
@@ -197,7 +202,7 @@ Hooks.on("ready", () => {
         }
 
         // clear token name so we don't display software gore to the user while async is running
-        tokenDocument.data.name = " ";
+        tokenDocument.name = " ";
 
         // do the roll
         const result = await getNewRolledValues(toRoll);
